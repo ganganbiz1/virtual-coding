@@ -10,8 +10,20 @@ export function useAgentEvents(): void {
       const { agentId, data } = event
       const line = data as ClaudeJsonLine
 
-      if (line.type === 'raw' || line.type === 'stderr') {
-        // Low-level text output - skip or add as info
+      if (line.type === 'raw') {
+        return
+      }
+
+      if (line.type === 'stderr') {
+        // Show stderr as a visible warning (helps debug auth errors, etc.)
+        if (line.text?.trim()) {
+          addMessage({
+            agentId,
+            role: 'error',
+            content: `[stderr] ${line.text.trim()}`,
+            isStreaming: false
+          })
+        }
         return
       }
 
@@ -60,7 +72,14 @@ export function useAgentEvents(): void {
 
       if (line.type === 'result') {
         finalizeLastMessage(agentId)
-        if (line.result) {
+
+        // stream-json already sent assistant messages above, so line.result would duplicate.
+        // Only show the result text if there were no prior assistant messages in this run
+        // (fallback for --output-format json or empty stream).
+        const store = useAgentStore.getState()
+        const msgs = store.messages[agentId] || []
+        const hasAssistantMsg = msgs.some((m) => m.role === 'assistant')
+        if (line.result && !hasAssistantMsg) {
           addMessage({
             agentId,
             role: 'assistant',
@@ -68,11 +87,13 @@ export function useAgentEvents(): void {
             isStreaming: false
           })
         }
-        if (line.cost_usd !== undefined) {
+
+        const cost = (line as unknown as Record<string, unknown>)['total_cost_usd'] ?? line.cost_usd
+        if (typeof cost === 'number') {
           addMessage({
             agentId,
             role: 'info',
-            content: `Cost: $${line.cost_usd.toFixed(4)}`,
+            content: `Cost: $${cost.toFixed(4)}`,
             isStreaming: false
           })
         }

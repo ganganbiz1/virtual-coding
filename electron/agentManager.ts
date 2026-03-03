@@ -61,7 +61,7 @@ export function spawnAgent(
   }
 
   const claudePath = getClaudePath()
-  const args: string[] = ['-p', '--output-format', 'json', '--verbose']
+  const args: string[] = ['-p', '--output-format', 'stream-json', '--verbose']
 
   if (options.allowedTools && options.allowedTools.length > 0) {
     args.push('--allowedTools', options.allowedTools.join(','))
