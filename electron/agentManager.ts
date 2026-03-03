@@ -61,6 +61,7 @@ export function spawnAgent(
   }
 
   const claudePath = getClaudePath()
+  // Prompt is passed via stdin to avoid --allowedTools variadic arg consuming it
   const args: string[] = ['-p', '--output-format', 'stream-json', '--verbose']
 
   if (options.allowedTools && options.allowedTools.length > 0) {
@@ -72,12 +73,9 @@ export function spawnAgent(
   }
 
   // Add shared context to prompt if provided
-  let finalPrompt = prompt
-  if (options.sharedContext) {
-    finalPrompt = `${options.sharedContext}\n\n---\n\n${prompt}`
-  }
-
-  args.push(finalPrompt)
+  const finalPrompt = options.sharedContext
+    ? `${options.sharedContext}\n\n---\n\n${prompt}`
+    : prompt
 
   // Remove CLAUDECODE env var to avoid nesting restriction
   const env = { ...process.env }
@@ -87,8 +85,12 @@ export function spawnAgent(
   const child = spawn(claudePath, args, {
     cwd: options.workDir || process.env.HOME,
     env,
-    stdio: ['ignore', 'pipe', 'pipe']
+    stdio: ['pipe', 'pipe', 'pipe']
   })
+
+  // Write prompt to stdin then close
+  child.stdin?.write(finalPrompt)
+  child.stdin?.end()
 
   const agentProcess: AgentProcess = {
     id: agentId,
